@@ -47,8 +47,10 @@ const MAX_GALLERY_SIZE = 50;
 
 function vdbg(...args) {
   if (!VISUALS_JSON_DEBUG) return;
-  console.debug('[context-image-generation][visuals-json]', ...args);
+  console.log('[context-image-generation][visuals-json]', ...args);
 }
+
+vdbg('debug logging ENABLED');
 
 async function loadSettings() {
     extension_settings[extensionName] = extension_settings[extensionName] || {};
@@ -314,7 +316,11 @@ function maybeUseVisualsJson(prompt) {
  */
 async function generateImageFromPrompt(prompt, sender = null) {
     const settings = extension_settings[extensionName];
-    const messages = await buildMessages(prompt, sender);
+
+    vdbg('generateImageFromPrompt called. sender=', sender);
+    vdbg('prompt preview:', String(prompt ?? '').slice(0, 200));
+    const filteredPrompt = maybeUseVisualsJson(prompt);
+    const messages = await buildMessages(filteredPrompt, sender);
 
     const requestBody = {
         chat_completion_source: 'custom',
@@ -485,8 +491,7 @@ async function cigMessageButton($icon) {
     $icon.removeClass('fa-wand-magic-sparkles').addClass('fa-spinner fa-spin');
 
     try {
-        const filtered = maybeUseVisualsJson(prompt);
-        const result = await generateImageFromPrompt(filtered, sender);
+        const result = await generateImageFromPrompt(prompt, sender);
 
         if (result) {
             const imageDataUrl = `data:${result.mimeType};base64,${result.imageData}`;
