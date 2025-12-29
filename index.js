@@ -27,6 +27,9 @@ import { ARGUMENT_TYPE, SlashCommandArgument } from '../../../slash-commands/Sla
 const extensionName = 'context-image-generation';
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
+// important for custom openai
+const CUSTOM_URL = 'http://100.77.172.64:8000/v1';
+
 const defaultSettings = {
     model: 'gemini-2.5-flash-image',
     aspect_ratio: '1:1',
@@ -226,6 +229,9 @@ async function generateImageFromPrompt(prompt, sender = null) {
         request_image_aspect_ratio: settings.aspect_ratio || '1:1',
         request_image_resolution: settings.image_size || undefined,
         stream: false,
+        // important for custom openai
+        custom_url: CUSTOM_URL,
+        custom_model_id: settings.model,
     };
 
     console.log(`[${extensionName}] Generating image with model:`, settings.model);
