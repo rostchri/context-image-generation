@@ -211,6 +211,65 @@ async function buildMessages(prompt, sender = null) {
 }
 
 /**
+ * Extracts a JSON object from a fenced block of the form:
+ *
+ * ```json
+ * { ... }
+ * ```
+ *
+ * Requirements:
+ * - The opening fence ``` must be at the start of a line
+ * - "json" must be on the same line as the opening fence
+ * - The JSON must start with "{" on the next line (allowing whitespace)
+ * - The extracted JSON must be syntactically valid (JSON.parse)
+ *
+ * Returns:
+ * - the JSON string "{...}" (exact slice) if found and valid
+ * - null otherwise
+ */
+function extractVisualsJsonBlock(text) {
+  if (typeof text !== 'string' || !text.trim()) return null;
+
+  // Multiline + global:
+  // - ^```json\s*$   opening fence at line start, only "json" on that line
+  // - then whitespace/newline(s), then a JSON object starting with "{"
+  // - capture minimal content up to a closing fence at line start
+  const fenceRe = /^```json\s*$\s*^(\{[\s\S]*?\})\s*$\s*^```[ \t]*$/gmi;
+
+  const matches = [...text.matchAll(fenceRe)];
+  if (!matches.length) return null;
+
+  // Pick the last valid JSON block (usually the most recent)
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const candidate = (matches[i][1] || '').trim();
+    if (!candidate.startsWith('{') || !candidate.endsWith('}')) continue;
+
+    try {
+      const obj = JSON.parse(candidate);
+
+      // Optional semantic filter:
+      // Only accept JSON blocks that contain "perspective"
+      if (obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, 'perspective')) {
+        return candidate;
+      }
+      // If you want ANY valid JSON (not just those with perspective), use:
+      // return candidate;
+    } catch {
+      // not valid JSON, keep searching
+    }
+  }
+
+  return null;
+}
+
+
+function maybeUseVisualsJson(prompt) {
+  const json = extractVisualsJsonBlock(prompt);
+  return json || prompt;
+}
+
+
+/**
  * Core generation function
  * @param {string} prompt - The prompt
  * @param {string|null} sender - Optional sender context
@@ -388,7 +447,8 @@ async function cigMessageButton($icon) {
     $icon.removeClass('fa-wand-magic-sparkles').addClass('fa-spinner fa-spin');
 
     try {
-        const result = await generateImageFromPrompt(prompt, sender);
+        const filtered = maybeUseVisualsJson(prompt);
+        const result = await generateImageFromPrompt(filtered, sender);
 
         if (result) {
             const imageDataUrl = `data:${result.mimeType};base64,${result.imageData}`;
