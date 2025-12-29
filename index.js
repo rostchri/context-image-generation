@@ -33,11 +33,6 @@ const CUSTOM_URL = 'http://100.77.172.64:8000/v1';
 // Toggle this to enable/disable debug logs
 const VISUALS_JSON_DEBUG = true;
 
-function vdbg(...args) {
-  if (!VISUALS_JSON_DEBUG) return;
-  console.debug('[context-image-generation][visuals-json]', ...args);
-}
-
 const defaultSettings = {
     model: 'gemini-2.5-flash-image',
     aspect_ratio: '1:1',
@@ -49,6 +44,11 @@ const defaultSettings = {
 };
 
 const MAX_GALLERY_SIZE = 50;
+
+function vdbg(...args) {
+  if (!VISUALS_JSON_DEBUG) return;
+  console.debug('[context-image-generation][visuals-json]', ...args);
+}
 
 async function loadSettings() {
     extension_settings[extensionName] = extension_settings[extensionName] || {};
@@ -216,14 +216,6 @@ async function buildMessages(prompt, sender = null) {
 
     messages.push({ role: 'user', content: contentParts });
     return messages;
-}
-
-// Toggle this to enable/disable debug logs
-const VISUALS_JSON_DEBUG = true;
-
-function vdbg(...args) {
-  if (!VISUALS_JSON_DEBUG) return;
-  console.debug('[context-image-generation][visuals-json]', ...args);
 }
 
 /**
