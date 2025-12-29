@@ -217,7 +217,7 @@ async function generateImageFromPrompt(prompt, sender = null) {
     const messages = await buildMessages(prompt, sender);
 
     const requestBody = {
-        chat_completion_source: 'openai',
+        chat_completion_source: 'custom',
         model: settings.model,
         messages: messages,
         max_tokens: 8192,
