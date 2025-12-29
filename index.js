@@ -30,6 +30,14 @@ const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 // important for custom openai
 const CUSTOM_URL = 'http://100.77.172.64:8000/v1';
 
+// Toggle this to enable/disable debug logs
+const VISUALS_JSON_DEBUG = true;
+
+function vdbg(...args) {
+  if (!VISUALS_JSON_DEBUG) return;
+  console.debug('[context-image-generation][visuals-json]', ...args);
+}
+
 const defaultSettings = {
     model: 'gemini-2.5-flash-image',
     aspect_ratio: '1:1',
@@ -210,6 +218,14 @@ async function buildMessages(prompt, sender = null) {
     return messages;
 }
 
+// Toggle this to enable/disable debug logs
+const VISUALS_JSON_DEBUG = true;
+
+function vdbg(...args) {
+  if (!VISUALS_JSON_DEBUG) return;
+  console.debug('[context-image-generation][visuals-json]', ...args);
+}
+
 /**
  * Extracts a JSON object from a fenced block of the form:
  *
@@ -222,52 +238,82 @@ async function buildMessages(prompt, sender = null) {
  * - "json" must be on the same line as the opening fence
  * - The JSON must start with "{" on the next line (allowing whitespace)
  * - The extracted JSON must be syntactically valid (JSON.parse)
+ * - (optional) contains key "perspective"
  *
  * Returns:
- * - the JSON string "{...}" (exact slice) if found and valid
+ * - the JSON string "{...}" if found and valid
  * - null otherwise
  */
 function extractVisualsJsonBlock(text) {
-  if (typeof text !== 'string' || !text.trim()) return null;
+  if (typeof text !== 'string' || !text.trim()) {
+    vdbg('input not a non-empty string');
+    return null;
+  }
 
   // Multiline + global:
-  // - ^```json\s*$   opening fence at line start, only "json" on that line
-  // - then whitespace/newline(s), then a JSON object starting with "{"
-  // - capture minimal content up to a closing fence at line start
+  // Opening fence at line start: ^```json\s*$
+  // Captures a JSON object starting with { ... } then closing fence at line start.
   const fenceRe = /^```json\s*$\s*^(\{[\s\S]*?\})\s*$\s*^```[ \t]*$/gmi;
 
   const matches = [...text.matchAll(fenceRe)];
+  vdbg(`found ${matches.length} fenced \`\`\`json blocks`);
+
   if (!matches.length) return null;
+
+  // helper for safe previews
+  const preview = (s, n = 200) => {
+    const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+    return t.length > n ? t.slice(0, n) + '…' : t;
+  };
 
   // Pick the last valid JSON block (usually the most recent)
   for (let i = matches.length - 1; i >= 0; i--) {
     const candidate = (matches[i][1] || '').trim();
-    if (!candidate.startsWith('{') || !candidate.endsWith('}')) continue;
+
+    vdbg(`checking candidate #${i}:`, preview(candidate));
+
+    if (!candidate.startsWith('{') || !candidate.endsWith('}')) {
+      vdbg(`candidate #${i} rejected: does not start/end with braces`);
+      continue;
+    }
 
     try {
       const obj = JSON.parse(candidate);
 
-      // Optional semantic filter:
-      // Only accept JSON blocks that contain "perspective"
-      if (obj && typeof obj === 'object' && Object.prototype.hasOwnProperty.call(obj, 'perspective')) {
-        return candidate;
+      if (!obj || typeof obj !== 'object') {
+        vdbg(`candidate #${i} rejected: JSON parsed but not an object`);
+        continue;
       }
-      // If you want ANY valid JSON (not just those with perspective), use:
-      // return candidate;
-    } catch {
-      // not valid JSON, keep searching
+
+      if (!Object.prototype.hasOwnProperty.call(obj, 'perspective')) {
+        vdbg(`candidate #${i} rejected: missing "perspective" key`);
+        continue;
+      }
+
+      vdbg(`candidate #${i} accepted ✅ perspective=`, obj.perspective);
+      return candidate;
+    } catch (e) {
+      vdbg(`candidate #${i} rejected: JSON.parse failed`, e);
+      continue;
     }
   }
 
+  vdbg('no valid visuals JSON block found');
   return null;
 }
 
-
+/** Optional: apply extraction or fall back to original prompt */
 function maybeUseVisualsJson(prompt) {
-  const json = extractVisualsJsonBlock(prompt);
-  return json || prompt;
+  const extracted = extractVisualsJsonBlock(prompt);
+  if (extracted) {
+    vdbg('using extracted visuals JSON as prompt (replacing original)');
+    return extracted;
+  }
+  vdbg('no visuals JSON extracted; using original prompt');
+  return prompt;
+  //const json = extractVisualsJsonBlock(prompt);
+  //return json || prompt;
 }
-
 
 /**
  * Core generation function
